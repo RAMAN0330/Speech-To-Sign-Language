@@ -1,0 +1,36 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Speech to Text API</title>
+</head>
+<body>
+    <h1>Speech to Text API</h1>
+    <button id="listen-button">Listen</button>
+    <button id="recognize-button">Recognize</button>
+    <div id="result"></div>
+
+    <script>
+        document.getElementById('listen-button').addEventListener('click', () => {
+            fetch('http://localhost:5000/listen', {
+                method: 'GET',
+            })
+            .then(response => response.json())
+            .then(data => {
+                document.getElementById('result').innerText = data.message;
+            })
+            .catch(error => console.error('Error:', error));
+        });
+
+        document.getElementById('recognize-button').addEventListener('click', () => {
+            fetch('http://localhost:5000/recognize', {
+                method: 'GET',
+            })
+            .then(response => response.json())
+            .then(data => {
+                document.getElementById('result').innerText = data.phrase || data.message;
+            })
+            .catch(error => console.error('Error:', error));
+        });
+    </script>
+</body>
+</html>
