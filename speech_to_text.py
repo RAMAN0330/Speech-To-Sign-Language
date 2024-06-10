@@ -1,32 +1,55 @@
 import speech_recognition as sr
+import threading
 
 class SpeechToText:
     def __init__(self, recognizer=None, microphone=None):
         self.recognizer = recognizer if recognizer else sr.Recognizer()
         self.microphone = microphone if microphone else sr.Microphone()
+        self.listening = False
+        self.stop_listening = None
+        self.audio = None
+        self.lock = threading.Lock()
 
     def listen(self):
-        with self.microphone as source:
+        with self.lock:
+            if self.listening:
+                print("Already listening")
+                return
+            self.listening = True
             print("Adjusting for ambient noise, please wait...")
-            self.recognizer.adjust_for_ambient_noise(source)
-            print("Listening...")
-            audio = self.recognizer.listen(source)
-        return audio
+            with self.microphone as source:
+                self.recognizer.adjust_for_ambient_noise(source)
+                print("Listening...")
 
-    def recognize_speech(self, audio):
-        try:
-            print("Recognizing...")
-            text = self.recognizer.recognize_google(audio)
-            print(f"Google Speech Recognition thinks you said: {text}")
-            return text.lower()  # Convert to lowercase for easier comparison
-        except sr.UnknownValueError:
-            print("Google Speech Recognition could not understand audio")
-        except sr.RequestError as e:
-            print(f"Could not request results from Google Speech Recognition service; {e}")
-        return None
+            def callback(recognizer, audio):
+                with self.lock:
+                    if self.listening:
+                        self.audio = audio
 
-if __name__ == "__main__":
-    stt = SpeechToText()
-    audio_data = stt.listen()
-    text = stt.recognize_speech(audio_data)
-    print(text)
+            self.stop_listening = self.recognizer.listen_in_background(self.microphone, callback)
+
+    def stop(self):
+        with self.lock:
+            if not self.listening:
+                print("Not currently listening")
+                return
+            self.listening = False
+            if self.stop_listening:
+                self.stop_listening(wait_for_stop=True)
+            print("Stopped listening.")
+
+    def recognize_speech(self):
+        with self.lock:
+            if not self.audio:
+                print("No audio to recognize.")
+                return None
+            try:
+                print("Recognizing...")
+                text = self.recognizer.recognize_google(self.audio)
+                print(f"Google Speech Recognition thinks you said: {text}")
+                return text.lower()  # Convert to lowercase for easier comparison
+            except sr.UnknownValueError:
+                print("Google Speech Recognition could not understand audio")
+            except sr.RequestError as e:
+                print(f"Could not request results from Google Speech Recognition service; {e}")
+            return None
