@@ -1,9 +1,9 @@
 import os
 import random
-import cv2
-from PIL import Image
 import diskcache as dc
-import time
+import imageio
+from PIL import Image
+
 
 class PhraseHandler:
     def __init__(self, videos_dir, alphabet_dir):
@@ -11,41 +11,25 @@ class PhraseHandler:
         self.alphabet_dir = alphabet_dir
         self.cache = dc.Cache('cache_directory')  # Cache directory
 
-    def search_and_play(self, phrase):
+    def search_and_return_paths(self, phrase):
         phrase_dir = os.path.join(self.videos_dir, phrase.lower())
+        video_path = None
+        gif_path = None
+
         if os.path.exists(phrase_dir) and os.path.isdir(phrase_dir):
             video_files = [f for f in os.listdir(phrase_dir) if f.endswith(('.mp4', '.avi', '.mov'))]
             if video_files:
                 selected_video = random.choice(video_files)
-                video_path = os.path.join(phrase_dir, selected_video)
+                video_path = f"static/{os.path.join(phrase_dir, selected_video)}"
                 self.cache.set('video', video_path)
-                self.play_video(video_path)
-                return
-        self.cache.set('phrase', phrase)
-        self.display_alphabet_images(phrase)
 
-    def play_video(self, video_path):
-        print(f"Playing video: {video_path}")
-        cap = cv2.VideoCapture(video_path)
+        if not video_path:
+            self.cache.set('phrase', phrase)
+            gif_path = self.create_alphabet_gif(phrase)
 
-        if not cap.isOpened():
-            print(f"Error opening video file: {video_path}")
-            return
+        return video_path, gif_path
 
-        while cap.isOpened():
-            ret, frame = cap.read()
-            if not ret:
-                break
-
-            cv2.imshow('Video', frame)
-
-            if cv2.waitKey(25) & 0xFF == ord('q'):
-                break
-
-        cap.release()
-        cv2.destroyAllWindows()
-
-    def display_alphabet_images(self, phrase):
+    def create_alphabet_gif(self, phrase):
         images = []
         for char in phrase:
             char_dir = os.path.join(self.alphabet_dir, char.upper())
@@ -53,23 +37,18 @@ class PhraseHandler:
                 for root, _, files in os.walk(char_dir):
                     if files:
                         file_path = os.path.join(root, files[0])
-                        image = cv2.imread(file_path)
-                        images.append(image)
-                        self.cache.set(f'image_{char}', image)
+                        images.append(imageio.imread(file_path))
+                        self.cache.set(f'image_{char}', file_path)
                         break
 
-        for img in images:
-            cv2.imshow('Alphabet Image', img)
-            cv2.waitKey(1000)  # Display each image for 1 second
-        cv2.destroyAllWindows()
+        if images:
+            gif_path = f"static/gifs/{phrase}.gif"
+            os.makedirs(os.path.dirname(gif_path), exist_ok=True)
+            imageio.mimsave(gif_path, images, duration=1)  # Save as GIF with 1 second duration per image
+            return gif_path
+
+        return None
 
     def clear_cache(self):
         print("Clearing cache")
         self.cache.clear()
-
-if __name__ == "__main__":
-    videos_directory = "path/to/Videos"
-    alphabet_directory = "path/to/Alphabet"
-    handler = PhraseHandler(videos_directory, alphabet_directory)
-    handler.search_and_play("example")
-    handler.clear_cache()
