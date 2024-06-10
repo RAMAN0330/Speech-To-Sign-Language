@@ -5,13 +5,15 @@
 </head>
 <body>
     <h1>Speech to Text API</h1>
-    <button id="listen-button">Listen</button>
-    <button id="recognize-button">Recognize</button>
+    <button id="recognize-button">Start Listening</button>
+    <button id="stop-button">Stop Listening</button>
     <div id="result"></div>
+    <video id="video-player" controls style="display: none; width: 50%;"></video>
+    <img id="gif-player" style="display: none; width: 50%;" />
 
     <script>
-        document.getElementById('listen-button').addEventListener('click', () => {
-            fetch('http://localhost:5000/listen', {
+        document.getElementById('recognize-button').addEventListener('click', () => {
+            fetch('http://localhost:5000/recognize', {
                 method: 'GET',
             })
             .then(response => response.json())
@@ -21,13 +23,36 @@
             .catch(error => console.error('Error:', error));
         });
 
-        document.getElementById('recognize-button').addEventListener('click', () => {
-            fetch('http://localhost:5000/recognize', {
+        document.getElementById('stop-button').addEventListener('click', () => {
+            fetch('http://localhost:5000/stop', {
                 method: 'GET',
             })
             .then(response => response.json())
             .then(data => {
-                document.getElementById('result').innerText = data.phrase || data.message;
+                const resultDiv = document.getElementById('result');
+                const videoPlayer = document.getElementById('video-player');
+                const gifPlayer = document.getElementById('gif-player');
+
+                resultDiv.innerText = data.phrase || data.message;
+
+                if (data.status === 'success') {
+                    if (data.video) {
+                        videoPlayer.style.display = 'block';
+                        videoPlayer.src = data.video;
+                        gifPlayer.style.display = 'none';
+                        gifPlayer.src = '';
+                    } else if (data.gif) {
+                        videoPlayer.style.display = 'none';
+                        videoPlayer.src = '';
+                        gifPlayer.style.display = 'block';
+                        gifPlayer.src = data.gif;
+                    }
+                } else {
+                    videoPlayer.style.display = 'none';
+                    videoPlayer.src = '';
+                    gifPlayer.style.display = 'none';
+                    gifPlayer.src = '';
+                }
             })
             .catch(error => console.error('Error:', error));
         });
