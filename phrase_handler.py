@@ -1,75 +1,36 @@
 import os
-import random
-import cv2
 from PIL import Image
-import diskcache as dc
-import time
+import io
+import base64
+import random
 
-class PhraseHandler:
-    def __init__(self, videos_dir, alphabet_dir):
-        self.videos_dir = videos_dir
-        self.alphabet_dir = alphabet_dir
-        self.cache = dc.Cache('cache_directory')  # Cache directory
+def get_alphabet_images(phrase, alphabet_directory):
+    images = []
+    for char in phrase:
+        char = char.lower()
+        if char.isalpha():
+            char_dir = os.path.join(alphabet_directory, char)
+            if os.path.exists(char_dir) and os.path.isdir(char_dir):
+                # Get a random image from the alphabet sub-directory
+                image_files = [f for f in os.listdir(char_dir) if f.endswith(('png', 'jpg', 'jpeg'))]
+                if image_files:
+                    image_path = os.path.join(char_dir, random.choice(image_files))
+                    with Image.open(image_path) as img:
+                        buffered = io.BytesIO()
+                        img.save(buffered, format="PNG")
+                        img_str = base64.b64encode(buffered.getvalue()).decode()
+                        images.append(f"data:image/png;base64,{img_str}")
+    return images
 
-    def search_and_play(self, phrase):
-        phrase_dir = os.path.join(self.videos_dir, phrase.lower())
-        if os.path.exists(phrase_dir) and os.path.isdir(phrase_dir):
-            video_files = [f for f in os.listdir(phrase_dir) if f.endswith(('.mp4', '.avi', '.mov'))]
-            if video_files:
-                selected_video = random.choice(video_files)
-                video_path = os.path.join(phrase_dir, selected_video)
-                self.cache.set('video', video_path)
-                self.play_video(video_path)
-                return
-        self.cache.set('phrase', phrase)
-        self.display_alphabet_images(phrase)
+def handle_phrase(phrase, video_directory, alphabet_directory):
+    phrase_dir = os.path.join(video_directory, phrase)
+    if os.path.exists(phrase_dir) and os.path.isdir(phrase_dir):
+        video_files = [f for f in os.listdir(phrase_dir) if f.endswith(('mp4', 'avi', 'mov'))]
+        if video_files:
+            return {"type": "video", "data": os.path.join(phrase, random.choice(video_files))}
 
-    def play_video(self, video_path):
-        print(f"Playing video: {video_path}")
-        cap = cv2.VideoCapture(video_path)
+    images = get_alphabet_images(phrase, alphabet_directory)
+    if images:
+        return {"type": "images", "data": images}
 
-        if not cap.isOpened():
-            print(f"Error opening video file: {video_path}")
-            return
-
-        while cap.isOpened():
-            ret, frame = cap.read()
-            if not ret:
-                break
-
-            cv2.imshow('Video', frame)
-
-            if cv2.waitKey(25) & 0xFF == ord('q'):
-                break
-
-        cap.release()
-        cv2.destroyAllWindows()
-
-    def display_alphabet_images(self, phrase):
-        images = []
-        for char in phrase:
-            char_dir = os.path.join(self.alphabet_dir, char.upper())
-            if os.path.exists(char_dir):
-                for root, _, files in os.walk(char_dir):
-                    if files:
-                        file_path = os.path.join(root, files[0])
-                        image = cv2.imread(file_path)
-                        images.append(image)
-                        self.cache.set(f'image_{char}', image)
-                        break
-
-        for img in images:
-            cv2.imshow('Alphabet Image', img)
-            cv2.waitKey(1000)  # Display each image for 1 second
-        cv2.destroyAllWindows()
-
-    def clear_cache(self):
-        print("Clearing cache")
-        self.cache.clear()
-
-if __name__ == "__main__":
-    videos_directory = "path/to/Videos"
-    alphabet_directory = "path/to/Alphabet"
-    handler = PhraseHandler(videos_directory, alphabet_directory)
-    handler.search_and_play("example")
-    handler.clear_cache()
+    return {"type": "error", "message": "No video or images found for the given phrase"}
